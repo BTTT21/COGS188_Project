@@ -7,7 +7,7 @@ def evaluate_solver(solver_class, num_games=100):
     total_time = 0
     exploration_rates = []
     best_episode = None
-    best_score = -float('inf')  # 定义一个初始最小得分
+    best_score = -float('inf')  # 初始最小得分
 
     for episode in range(num_games):
         game = Minesweeper()
@@ -16,13 +16,14 @@ def evaluate_solver(solver_class, num_games=100):
         solver.train(1)  # 每个 episode 训练一次
         duration = time.time() - start_time
         
-        # 计算当前 episode 的探索率：已揭示单元格 / (总格数 - 雷数)
-        revealed = np.sum(game.revealed)
-        exploration_rate = revealed / (game.rows * game.cols - game.total_mines)
+        # 只计算安全格子的揭示数量（排除地雷）
+        safe_revealed = np.sum((game.revealed) & (game.board != -1))
+        safe_total = game.rows * game.cols - game.total_mines
+        exploration_rate = safe_revealed / safe_total
         exploration_rates.append(exploration_rate)
         total_time += duration
         
-        # 定义一个简单的得分标准：获胜 episode 得分为探索率，否则得分为0（也可以自行设计其他得分规则）
+        # 简单得分：获胜时得分为探索率，否则为 0
         if game.victory:
             wins += 1
             score = exploration_rate

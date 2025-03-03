@@ -17,6 +17,7 @@ class MCSolver(BaseSolver):
         total_rewards = defaultdict(float)
         
         for _ in range(self.simulations):
+            # 重置游戏状态为初始状态
             self.game.__dict__.update(original_state)
             steps = []
             while not self.game.game_over:
@@ -26,11 +27,19 @@ class MCSolver(BaseSolver):
                 else:
                     action = self._best_action()
                 
+                # 如果没有可选动作，跳出循环
+                if action is None:
+                    break
+                
                 r, c, _ = action
                 prev_state = self._get_state_hash()
                 reward = 1 if self.game.reveal(r, c) else -100
                 steps.append((prev_state, action, reward))
             
+            # 如果当前模拟没有任何步，说明没有可行动作，直接结束模拟
+            if not steps:
+                break
+
             # 反向传播回报
             G = 0
             for (s, a, r) in reversed(steps):
@@ -62,6 +71,7 @@ class MCSolver(BaseSolver):
             if value > best_value:
                 best_value = value
                 best_action = action
+        # 如果没有选出最优动作，则退回到随机动作
         return best_action or self._random_action()
         
     def train(self, episodes):

@@ -6,28 +6,34 @@ class Minesweeper:
         self.rows = rows
         self.cols = cols
         self.total_mines = mines
-        self.reset()
-        
-    def reset(self, first_click=None):
-        """初始化游戏板，确保第一次点击不是地雷"""
+        self.first_click = True  # 标识是否是第一次点击
+        # 初始化棋盘，暂时不放置地雷
         self.board = np.zeros((self.rows, self.cols), dtype=int)  # -1: 雷, 0-8: 数字
         self.revealed = np.full((self.rows, self.cols), False)
         self.flags = np.full((self.rows, self.cols), False)
         self.game_over = False
         self.victory = False
-        self._place_mines(first_click)
-        self._calculate_numbers()
-        
+
+    def reset(self):
+        """重置游戏状态，不直接放置地雷，等待首次点击"""
+        self.first_click = True
+        self.board = np.zeros((self.rows, self.cols), dtype=int)
+        self.revealed = np.full((self.rows, self.cols), False)
+        self.flags = np.full((self.rows, self.cols), False)
+        self.game_over = False
+        self.victory = False
+
     def _place_mines(self, safe_cell):
-        """随机放置地雷，排除安全区域"""
+        """随机放置地雷，排除安全区域（safe_cell 及其邻居）"""
         candidates = list(product(range(self.rows), range(self.cols)))
         if safe_cell:
-            candidates.remove(safe_cell)
+            if safe_cell in candidates:
+                candidates.remove(safe_cell)
             neighbors = self._get_neighbors(*safe_cell)
             candidates = [c for c in candidates if c not in neighbors]
-            
-        mine_positions = np.random.choice(
-            len(candidates), self.total_mines, replace=False)
+        if self.total_mines > len(candidates):
+            raise ValueError("候选位置不足以放置所有地雷。")
+        mine_positions = np.random.choice(len(candidates), self.total_mines, replace=False)
         for idx in mine_positions:
             r, c = candidates[idx]
             self.board[r, c] = -1
@@ -60,13 +66,25 @@ class Minesweeper:
 
     def reveal(self, row, col):
         """揭示单元格并处理级联效果"""
+        # 检查输入是否在范围内
+        if not (0 <= row < self.rows and 0 <= col < self.cols):
+            print("输入坐标超出范围。")
+            return False
         if self.game_over or self.flags[row, col]:
             return False
-            
+
+        # 第一次点击时生成雷区，确保安全区域无雷
+        if self.first_click:
+            self._place_mines((row, col))
+            self._calculate_numbers()
+            self.first_click = False
+
         if not self.revealed[row, col]:
             if self.board[row, col] == -1:  # 踩雷
+                self.revealed[row, col] = True  # 揭示触雷的单元格
                 self.game_over = True
                 self.victory = False
+                self._reveal_all_mines()  # 揭示所有地雷
                 return False
                 
             self.revealed[row, col] = True
@@ -86,6 +104,13 @@ class Minesweeper:
                     if self.board[nr, nc] == 0:
                         stack.append((nr, nc))
 
+    def _reveal_all_mines(self):
+        """游戏结束时揭示所有地雷"""
+        for r in range(self.rows):
+            for c in range(self.cols):
+                if self.board[r, c] == -1:
+                    self.revealed[r, c] = True
+
     def toggle_flag(self, row, col):
         """切换标记状态"""
         if not self.revealed[row, col] and not self.game_over:
@@ -94,7 +119,7 @@ class Minesweeper:
 
     def check_victory(self):
         """检查是否胜利"""
-        if np.sum(self.revealed) == self.rows*self.cols - self.total_mines:
+        if np.sum(self.revealed) == self.rows * self.cols - self.total_mines:
             self.game_over = True
             self.victory = True
         return self.victory
@@ -112,9 +137,9 @@ class Minesweeper:
     def render(self):
         """打印当前游戏状态（调试用）"""
         symbols = {
+            -1: 'X',  # 地雷
+            0: ' ',   # 空白
             -2: 'F',  # 标记
-            -1: 'X',  # 未揭示雷
-            0: ' ',    # 空白
         }
         for r in range(self.rows):
             row_str = []
@@ -132,7 +157,7 @@ class Minesweeper:
 # 示例用法
 if __name__ == "__main__":
     game = Minesweeper()
-    # 首次点击（你可以指定一个安全区域，例如中间位置）
+    # 首次点击（例如中间位置）
     game.reveal(8, 16)
     
     # 进入交互式循环，直到游戏结束
@@ -150,6 +175,11 @@ if __name__ == "__main__":
             col = int(col_str)
         except ValueError:
             print("行和列需要是整数。")
+            continue
+
+        # 检查输入坐标是否在范围内
+        if not (0 <= row < game.rows and 0 <= col < game.cols):
+            print("输入坐标超出范围，请输入0到{}之间的数字。".format(game.rows - 1))
             continue
         
         if action.lower() == 'r':
