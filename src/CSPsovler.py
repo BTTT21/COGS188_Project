@@ -19,7 +19,7 @@ Usage (from your Minesweeper project):
 
 # Try importing the game instance from minesweeper.py.
 try:
-    from minesweeper_cited import game
+    from minesweeper import game
 except ImportError:
     game = None  # If not available, a dummy board will be used in __main__
 
