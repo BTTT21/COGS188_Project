@@ -21,7 +21,7 @@ class DPSolver(BaseSolver):
                     if self.game.revealed[r, c] or self.game.flags[r, c]:
                         continue
                     # 计算相邻单元格的价值
-                    neighbors = self._get_neighbors(r, c)
+                    neighbors = self.game._get_neighbors(r, c)
                     neighbor_values = []
                     for nr, nc in neighbors:
                         if self.game.revealed[nr, nc]:

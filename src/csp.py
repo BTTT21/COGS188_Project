@@ -13,7 +13,7 @@ class CSPSolver(BaseSolver):
         for r in range(self.game.rows):
             for c in range(self.game.cols):
                 if self.game.revealed[r, c] and self.game.board[r, c] > 0:
-                    neighbors = self._get_neighbors(r, c)
+                    neighbors = self.game._get_neighbors(r, c)
                     hidden = [(nr, nc) for (nr, nc) in neighbors 
                              if not self.game.revealed[nr, nc]]
                     self.constraints.append({
