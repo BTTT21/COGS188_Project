@@ -296,7 +296,7 @@ class Menu:
                 return False
 
 
-    # Initialize pygame and set initial screen size and caption
+# Initialize pygame and set initial screen size and caption
 pygame.init()
 size = (NSQUARES_X * (WIDTH + MARGIN) + MARGIN, (NSQUARES_Y * (HEIGHT + MARGIN) + MARGIN) + MENU_SIZE)
 screen = pygame.display.set_mode(size, pygame.RESIZABLE)
