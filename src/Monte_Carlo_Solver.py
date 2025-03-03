@@ -3,7 +3,7 @@ import sys
 import numpy as np
 import random
 from random import sample
-from minesweeper_cited import Game, Menu, LEFT_CLICK, WIDTH, MARGIN, MENU_SIZE, HEIGHT, clock
+from minesweeper import Game, Menu, LEFT_CLICK, WIDTH, MARGIN, MENU_SIZE, HEIGHT, clock
 
 
 # 创建游戏实例
