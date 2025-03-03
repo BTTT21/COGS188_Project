@@ -132,5 +132,36 @@ class Minesweeper:
 # 示例用法
 if __name__ == "__main__":
     game = Minesweeper()
-    game.reveal(8, 16)  # 中间位置首次点击
+    # 首次点击（你可以指定一个安全区域，例如中间位置）
+    game.reveal(8, 16)
+    
+    # 进入交互式循环，直到游戏结束
+    while not game.game_over:
+        game.render()
+        cmd = input("请输入操作 (r 行 列 来揭示，f 行 列 来标记): ")
+        parts = cmd.split()
+        if len(parts) != 3:
+            print("输入格式错误，请按提示输入，例如：r 8 16")
+            continue
+        
+        action, row_str, col_str = parts
+        try:
+            row = int(row_str)
+            col = int(col_str)
+        except ValueError:
+            print("行和列需要是整数。")
+            continue
+        
+        if action.lower() == 'r':
+            game.reveal(row, col)
+        elif action.lower() == 'f':
+            game.toggle_flag(row, col)
+        else:
+            print("未知操作。请使用 r（揭示）或 f（标记）。")
+    
+    # 游戏结束后，展示最终状态
     game.render()
+    if game.victory:
+        print("恭喜你，获胜了！")
+    else:
+        print("游戏结束，你输了。")
