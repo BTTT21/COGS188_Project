@@ -1,3 +1,7 @@
+import time
+import numpy as np
+from game import Minesweeper
+
 def evaluate_solver(solver_class, num_games=100):
     wins = 0
     total_time = 0
