@@ -1,8 +1,7 @@
 import pygame
 import sys
-import numpy as np
 from random import choice
-# Import your Minesweeper environment. Ensure minesweeper_env.py is in your project directory.
+# Import your Minesweeper environment. Ensure minesweeper.py is in your project directory.
 from minesweeper import Game, Menu, BLACK, WHITE, BLUE, RED, GRAY, MARGIN, WIDTH, HEIGHT, MENU_SIZE, LEFT_CLICK, RIGHT_CLICK
 
 class DynamicProgramming:
@@ -61,15 +60,14 @@ class DynamicProgramming:
         Use recursive dynamic programming with memoization to count valid bomb assignments
         for the frontier cells, and compute for each cell the number of configurations
         in which it is a bomb.
-
+        
         Args:
             frontier (list): List of frontier cell tuples.
             constraints (list): List of constraints as returned by extract_frontier_and_constraints.
-
+        
         Returns:
             probabilities (dict): Mapping from frontier cell (row, col) to probability of bomb.
         """
-        # Order the frontier cells for consistency.
         frontier = sorted(frontier)
         n = len(frontier)
 
@@ -88,18 +86,6 @@ class DynamicProgramming:
         memo = {}
 
         def dp(index, req_tuple):
-            """
-            Recursive DP function.
-
-            Args:
-                index (int): Current index in frontier.
-                req_tuple (tuple): Remaining bomb requirements for each constraint.
-            
-            Returns:
-                (total, bomb_counts): total is the number of valid configurations,
-                                      bomb_counts is a list of length n where bomb_counts[i] is the number
-                                      of configurations in which frontier[i] is a bomb.
-            """
             if index == n:
                 if all(x == 0 for x in req_tuple):
                     return 1, [0] * n
@@ -137,9 +123,15 @@ class DynamicProgramming:
             return memo[key]
 
         total, bomb_counts = dp(0, tuple(cons_required))
+        
+        # If no valid configuration is found, fallback to selecting a random frontier cell.
+        if total == 0:
+            random_cell = choice(frontier)
+            return {cell: (1.0 if cell == random_cell else 0.0) for cell in frontier}
+        
         probabilities = {}
         for i, cell in enumerate(frontier):
-            probabilities[cell] = bomb_counts[i] / total if total > 0 else 1.0
+            probabilities[cell] = bomb_counts[i] / total
         return probabilities
 
     def solve(self):
@@ -151,34 +143,27 @@ class DynamicProgramming:
         Returns:
             best_move (tuple): (row, col) of the cell to click.
         """
-        num_step=0
-        # If no move has been made, force an initial move.
-        if num_step==0:
-            # For example, choose the center cell.
+        # If game hasn't started, choose an initial move.
+        if not self.game.init:
             center_row = self.game.squares_y // 2
             center_col = self.game.squares_x // 2
-            print("Initial move chosen by solver:", (center_row, center_col))
-            num_step+=1
+            self.game.init = True  # Mark the game as initialized.
             return (center_row, center_col)
         
         frontier, constraints = self.extract_frontier_and_constraints()
-        # Collect all hidden (and unflagged) cells.
-        hidden = []
-        for r in range(self.game.squares_y):
-            for c in range(self.game.squares_x):
-                cell = self.game.grid[r][c]
-                if not cell.is_visible and not cell.has_flag:
-                    hidden.append((r, c))
-        if not frontier:
-            if hidden:
-                chosen = choice(hidden)
-                print("No frontier found, choosing random cell:", chosen)
-                return chosen
-            else:
-                return None
+        hidden = [(r, c) for r in range(self.game.squares_y)
+                          for c in range(self.game.squares_x)
+                          if not self.game.grid[r][c].is_visible and not self.game.grid[r][c].has_flag]
+        
+        # If no frontier or constraints, fall back to a random hidden cell.
+        if not frontier or not constraints:
+            return choice(hidden) if hidden else None
+
         probabilities = self.solve_dp(frontier, constraints)
+        if not probabilities:
+            return choice(hidden) if hidden else None
+
         best_move = min(probabilities, key=probabilities.get)
-        print("Solver selected move:", best_move, "with probability:", probabilities[best_move])
         return best_move
 
 # -------------------------------
@@ -195,15 +180,18 @@ if __name__ == "__main__":
 
     while True:
         for event in pygame.event.get():
+            # Closes the game if user clicks the X
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
+            # Handle screen resize events
             elif event.type == pygame.VIDEORESIZE:
                 if game.resize:
                     game.adjust_grid(event.w, event.h)
                     game.reset_game()
                 else:
                     game.resize = True
+            # Handle mouse clicks
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 pos = pygame.mouse.get_pos()
                 column = pos[0] // (WIDTH + MARGIN)
@@ -222,7 +210,9 @@ if __name__ == "__main__":
             best_move = dp_solver.solve()
             if best_move is not None:
                 r, c = best_move
-                game.click_handle(r, c, LEFT_CLICK)
+                if not game.grid[r][c].is_visible:
+                    game.click_handle(r, c, LEFT_CLICK)
+                    pygame.time.delay(500)  # Delay to allow board state to update visibly
 
         game.draw()
         menu.draw(game)

@@ -308,34 +308,38 @@ game = Game()
 menu = Menu()
 clock = pygame.time.Clock()
 # Main loop
-while True:
-    for event in pygame.event.get():
-        # Closes the game if user clicks the X
-        if event.type == pygame.QUIT:  
-            pygame.quit()
-            sys.exit()
-        # Handle mouse clicks
-        elif event.type == pygame.MOUSEBUTTONDOWN:
-            position = pygame.mouse.get_pos()
-            column = position[0] // (WIDTH + MARGIN)
-            row = (position[1] - MENU_SIZE) // (HEIGHT + MARGIN)
-            if row >= game.squares_y:
-                row = game.squares_y - 1
-            if column >= game.squares_x:
-                column = game.squares_x - 1
-            if row >= 0:
-                game.click_handle(row, column, event.button)
-            else:
-                menu.click_handle(game)
-        # Handle screen resize events
-        elif event.type == pygame.VIDEORESIZE:
-            if game.resize: 
-                game.adjust_grid(event.w, event.h)
-                game.reset_game()
-            else:  
-                game.resize = True
 
-    game.draw()
-    menu.draw(game)
-    clock.tick(60)
-    pygame.display.flip()
+def run_game():
+    while True:
+        for event in pygame.event.get():
+            # Closes the game if user clicks the X
+            if event.type == pygame.QUIT:  
+                pygame.quit()
+                sys.exit()
+            # Handle mouse clicks
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                position = pygame.mouse.get_pos()
+                column = position[0] // (WIDTH + MARGIN)
+                row = (position[1] - MENU_SIZE) // (HEIGHT + MARGIN)
+                if row >= game.squares_y:
+                    row = game.squares_y - 1
+                if column >= game.squares_x:
+                    column = game.squares_x - 1
+                if row >= 0:
+                    game.click_handle(row, column, event.button)
+                else:
+                    menu.click_handle(game)
+            # Handle screen resize events
+            elif event.type == pygame.VIDEORESIZE:
+                if game.resize: 
+                    game.adjust_grid(event.w, event.h)
+                    game.reset_game()
+                else:  
+                    game.resize = True
+    
+        game.draw()
+        menu.draw(game)
+        clock.tick(60)
+        pygame.display.flip()
+if __name__ == "__main__":
+    run_game()
