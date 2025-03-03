@@ -1,55 +1,48 @@
 """
-CSPsolver.py
+CSPsolver_sample.py
 
-A CSP solver for Minesweeper that uses the grid built in minesweeper.py.
-It imports the current game instance (or at least the grid and its dimensions)
-from minesweeper.py. Covered cells adjacent to an uncovered cell become CSP variables,
-while flagged cells (or those not adjacent to any clue) are fixed. Each uncovered cell
-(with a clue) produces a constraint: the sum of the adjacent variable values must equal
-the clue (adjusted by any fixed assignments).
+A sample (simplified) CSP solver for Minesweeper.
+It builds a constraint model for the “frontier” cells (covered cells adjacent to a revealed number)
+by treating each such cell as a boolean variable (0: safe, 1: mine) and collecting constraints
+from the uncovered cells (each constraint says that the sum of adjacent mine‐variables equals the clue
+minus any fixed (flagged) mines).
 
-Usage (from your Minesweeper project):
-    from CSPsolver import MinesweeperCSP, print_csp_solution
-    from minesweeper import game  # game should be the current Game instance
-    csp_solver = MinesweeperCSP(game.grid, game.squares_y, game.squares_x)
-    solution = csp_solver.solve()
-    if solution is not None:
-        print_csp_solution(game.grid, solution, game.squares_y, game.squares_x)
+The solver uses recursive backtracking to enumerate all solutions, computes the probability that
+each frontier cell is a mine, and chooses the cell with the lowest probability as the next move.
+
+Usage (run this file directly):
+    python CSPsolver_sample.py
+This will open a Pygame Minesweeper window (using your existing minesweeper.py) and automatically
+make moves based on the CSP solver.
 """
 
-# Try importing the game instance from minesweeper.py.
-try:
-    from minesweeper import game
-except ImportError:
-    game = None  # If not available, a dummy board will be used in __main__
+import pygame
+import sys
+from random import choice
+from minesweeper import Game, Menu
+from minesweeper import BLACK, WHITE, BLUE, RED, GRAY, MARGIN, WIDTH, HEIGHT, MENU_SIZE, LEFT_CLICK, RIGHT_CLICK
 
-class MinesweeperCSP:
+###############################################################################
+# Simple CSP Solver for Minesweeper
+###############################################################################
+
+class SimpleMinesweeperCSP:
     def __init__(self, grid, rows, cols):
         """
-        Initialize the CSP solver using the Minesweeper grid.
-        
-        :param grid: 2D list of Cell objects from minesweeper.py.
-                     Each Cell should have:
-                         - is_visible (bool)
-                         - bomb_count (int) for uncovered cells
-                         - has_bomb (bool)
-                         - has_flag (bool)
-        :param rows: number of rows in the grid.
-        :param cols: number of columns in the grid.
+        :param grid: 2D list of Cell objects (from minesweeper.py)
+        :param rows: number of rows in the grid
+        :param cols: number of columns in the grid
         """
         self.grid = grid
         self.rows = rows
         self.cols = cols
 
-        # Variables: keys are (i,j) coordinates for covered cells that are adjacent to an uncovered cell.
-        # Domain for each variable is [0, 1] (0: Safe, 1: Mine).
+        # Frontier variables: covered cells adjacent to a revealed cell.
+        # Domain for each: [0,1] (0 = safe, 1 = mine)
         self.variables = {}
-        # Fixed assignments:
-        #   - Covered cells not adjacent to any uncovered cell are fixed as safe (0).
-        #   - Flagged cells are fixed as mines (1).
+        # Fixed assignments: cells that are not frontier (or are flagged)
         self.fixed = {}
-        # Constraints: list of tuples (target, [list of variable coordinates]).
-        # Each uncovered cell with a clue (and not a bomb) produces a constraint.
+        # Constraints: list of (target, [list of variable coordinates])
         self.constraints = []
         # Mapping from each variable to the indices of constraints in which it appears.
         self.var_to_constraints = {}
@@ -57,12 +50,12 @@ class MinesweeperCSP:
         self.build_csp()
 
     def build_csp(self):
-        # Identify frontier cells: covered cells adjacent to at least one uncovered cell.
+        # Identify frontier cells (covered cells adjacent to a revealed cell)
         for i in range(self.rows):
             for j in range(self.cols):
                 cell = self.grid[i][j]
                 if not cell.is_visible:
-                    adjacent_to_visible = False
+                    adjacent_visible = False
                     for di in [-1, 0, 1]:
                         for dj in [-1, 0, 1]:
                             if di == 0 and dj == 0:
@@ -70,23 +63,23 @@ class MinesweeperCSP:
                             ni, nj = i + di, j + dj
                             if 0 <= ni < self.rows and 0 <= nj < self.cols:
                                 if self.grid[ni][nj].is_visible:
-                                    adjacent_to_visible = True
-                    if adjacent_to_visible:
+                                    adjacent_visible = True
+                    if adjacent_visible:
                         if cell.has_flag:
-                            self.fixed[(i, j)] = 1
+                            self.fixed[(i, j)] = 1  # flagged cell is fixed as mine
                         else:
                             self.variables[(i, j)] = [0, 1]
                     else:
-                        self.fixed[(i, j)] = 0
-
-        # Build constraints from uncovered cells (with clues).
+                        self.fixed[(i, j)] = 0  # not adjacent => safe
+                        
+        # Build constraints from each uncovered (visible) cell that is not a bomb
         for i in range(self.rows):
             for j in range(self.cols):
                 cell = self.grid[i][j]
                 if cell.is_visible and not cell.has_bomb:
                     target = cell.bomb_count
-                    adj_vars = []
                     fixed_sum = 0
+                    var_list = []
                     for di in [-1, 0, 1]:
                         for dj in [-1, 0, 1]:
                             if di == 0 and dj == 0:
@@ -98,108 +91,142 @@ class MinesweeperCSP:
                                     if (ni, nj) in self.fixed:
                                         fixed_sum += self.fixed[(ni, nj)]
                                     elif (ni, nj) in self.variables:
-                                        adj_vars.append((ni, nj))
+                                        var_list.append((ni, nj))
                     adjusted_target = target - fixed_sum
-                    if adj_vars or adjusted_target != 0:
-                        self.constraints.append((adjusted_target, adj_vars))
+                    if var_list or adjusted_target != 0:
+                        self.constraints.append((adjusted_target, var_list))
         
-        # Build mapping from each variable to the constraints in which it appears.
+        # Build mapping: for each variable, record indices of constraints in which it appears
         self.var_to_constraints = {var: [] for var in self.variables}
         for idx, (target, var_list) in enumerate(self.constraints):
             for var in var_list:
-                if var in self.var_to_constraints:
-                    self.var_to_constraints[var].append(idx)
+                self.var_to_constraints[var].append(idx)
 
     def is_consistent(self, assignment, var):
         """
-        For each constraint involving the given variable, check that:
-          - The sum of assigned values does not exceed the target.
-          - Even if every unassigned variable becomes a mine (1), the target can be reached.
+        Check consistency for constraints involving variable 'var'.
+        For each constraint, ensure:
+           sum(assigned values) <= target AND
+           sum(assigned values) + (number of unassigned vars) >= target
         """
-        for idx in self.var_to_constraints.get(var, []):
-            target, var_list = self.constraints[idx]
+        for c_idx in self.var_to_constraints.get(var, []):
+            target, var_list = self.constraints[c_idx]
             assigned_sum = 0
-            unassigned_count = 0
+            unassigned = 0
             for v in var_list:
                 if v in assignment:
                     assigned_sum += assignment[v]
                 else:
-                    unassigned_count += 1
-            if assigned_sum > target or assigned_sum + unassigned_count < target:
+                    unassigned += 1
+            if assigned_sum > target or assigned_sum + unassigned < target:
                 return False
         return True
 
-    def select_unassigned_variable(self, assignment):
+    def _backtrack(self, assignment, var_list, idx, solutions):
         """
-        Select the next unassigned variable using a simple degree heuristic:
-        choose the variable that appears in the most constraints.
+        Recursively enumerate all assignments for frontier variables that satisfy constraints.
         """
-        unassigned = [v for v in self.variables if v not in assignment]
-        if not unassigned:
-            return None
-        unassigned.sort(key=lambda v: len(self.var_to_constraints.get(v, [])), reverse=True)
-        return unassigned[0]
-
-    def backtracking_search(self, assignment):
-        """
-        Recursive backtracking search with forward checking.
-        """
-        if len(assignment) == len(self.variables):
-            return assignment
-        var = self.select_unassigned_variable(assignment)
+        if idx == len(var_list):
+            solutions.append(dict(assignment))
+            return
+        var = var_list[idx]
         for value in self.variables[var]:
             assignment[var] = value
             if self.is_consistent(assignment, var):
-                result = self.backtracking_search(assignment)
-                if result is not None:
-                    return result
+                self._backtrack(assignment, var_list, idx + 1, solutions)
             del assignment[var]
-        return None
+
+    def find_all_solutions(self):
+        """
+        Return a list of all complete assignments (as dictionaries) that satisfy the CSP.
+        """
+        base_assignment = dict(self.fixed)
+        var_list = list(self.variables.keys())
+        solutions = []
+        self._backtrack(base_assignment, var_list, 0, solutions)
+        return solutions
+
+    def compute_probabilities(self):
+        """
+        Compute for each frontier variable the probability of being a mine,
+        based on the fraction of all solutions in which it is assigned 1.
+        """
+        solutions = self.find_all_solutions()
+        if not solutions:
+            return {}
+        counts = {var: 0 for var in self.variables}
+        for sol in solutions:
+            for var in self.variables:
+                counts[var] += sol.get(var, 0)
+        probabilities = {var: counts[var] / len(solutions) for var in self.variables}
+        return probabilities
+
+    def choose_best_move(self):
+        """
+        Pick the frontier cell with the lowest probability of being a mine.
+        If no CSP solutions are found, return a random covered, non-flagged cell.
+        """
+        probs = self.compute_probabilities()
+        if not probs:
+            # fallback: choose random frontier cell
+            frontier = [(i, j) for i in range(self.rows) for j in range(self.cols)
+                        if not self.grid[i][j].is_visible and not self.grid[i][j].has_flag]
+            return choice(frontier) if frontier else None
+        best_cell = min(probs, key=lambda v: probs[v])
+        return best_cell
 
     def solve(self):
         """
-        Solve the Minesweeper CSP.
-        
-        :return: A dictionary mapping each covered cell coordinate (i, j) to 0 (Safe) or 1 (Mine),
-                 including both fixed assignments and those determined via backtracking.
+        Return the coordinate (row, col) of the best move (lowest mine probability).
         """
-        result = self.backtracking_search({})
-        if result is None:
-            return None
-        full_assignment = {}
-        full_assignment.update(self.fixed)
-        full_assignment.update(result)
-        return full_assignment
+        return self.choose_best_move()
 
-def print_csp_solution(grid, assignment, rows, cols):
-    """
-    Utility function to print the Minesweeper board along with the CSP solution.
-    For each cell:
-      - Uncovered cells display their bomb_count.
-      - Covered cells display:
-            "M" if assigned as a mine (1),
-            "S" if safe (0),
-            "?" if no assignment is available.
-    """
-    for i in range(rows):
-        row_str = []
-        for j in range(cols):
-            cell = grid[i][j]
-            if cell.is_visible:
-                row_str.append(str(cell.bomb_count))
-            else:
-                if (i, j) in assignment:
-                    row_str.append("M" if assignment[(i, j)] == 1 else "S")
-                else:
-                    row_str.append("?")
-        print(" ".join(row_str))
+###############################################################################
+# Main Loop: Automatic CSP-Solver Demonstration in Pygame
+###############################################################################
 
 if __name__ == "__main__":
-    # Use the imported game instance.
-    csp_solver = MinesweeperCSP(game.grid, game.squares_y, game.squares_x)
-    solution = csp_solver.solve()
-    if solution is None:
-        print("No solution found.")
-    else:
-        print("CSP Solution:")
-        print_csp_solution(game.grid, solution, game.squares_y, game.squares_x)
+    pygame.init()
+    game = Game()
+    menu = Menu()
+    clock = pygame.time.Clock()
+    auto_solve = True  # Set to True to have the solver automatically make moves
+
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.VIDEORESIZE:
+                if game.resize:
+                    game.adjust_grid(event.w, event.h)
+                    game.reset_game()
+                else:
+                    game.resize = True
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                pos = pygame.mouse.get_pos()
+                col = pos[0] // (WIDTH + MARGIN)
+                row = (pos[1] - MENU_SIZE) // (HEIGHT + MARGIN)
+                if row >= game.squares_y:
+                    row = game.squares_y - 1
+                if col >= game.squares_x:
+                    col = game.squares_x - 1
+                if row >= 0:
+                    game.click_handle(row, col, event.button)
+                else:
+                    menu.click_handle(game)
+
+        # Automatic move: if the game is ongoing, use the CSP solver to pick the best move
+        if auto_solve and not game.game_lost and not game.game_won:
+            csp_solver = SimpleMinesweeperCSP(game.grid, game.squares_y, game.squares_x)
+            move = csp_solver.solve()
+            if move is not None:
+                r, c = move
+                if not game.grid[r][c].is_visible:
+                    game.click_handle(r, c, LEFT_CLICK)
+                    pygame.time.delay(500)  # Delay to visually observe the move
+
+        game.draw()
+        menu.draw(game)
+        clock.tick(10)
+        pygame.display.flip()
