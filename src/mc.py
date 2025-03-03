@@ -1,6 +1,7 @@
 import numpy as np
 import time
 from collections import defaultdict
+from solver import BaseSolver
 
 class MCSolver(BaseSolver):
     def __init__(self, game, simulations=500, epsilon=0.1):

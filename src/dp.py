@@ -1,6 +1,7 @@
 import numpy as np
 import time
 from collections import defaultdict
+from solver import BaseSolver
 
 # ================== Dynamic Programming Solver ==================
 class DPSolver(BaseSolver):
