@@ -22,7 +22,7 @@ RIGHT_CLICK = 3
 NSQUARES_X = 30  # Number of columns
 NSQUARES_Y = 16  # Number of rows
 # Set initial number of bombs to 99 for Expert level
-EXPERT_BOMBS = 99
+EXPERT_BOMBS = 60
 
 # Class that holds the game logic          
 class Game:
