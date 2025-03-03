@@ -22,7 +22,7 @@ RIGHT_CLICK = 3
 NSQUARES_X = 30  # Number of columns
 NSQUARES_Y = 16  # Number of rows
 # Set initial number of bombs to 99 for Expert level
-EXPERT_BOMBS = 60
+EXPERT_BOMBS = 99
 
 # Class that holds the game logic          
 class Game:
@@ -88,22 +88,18 @@ class Game:
         elif self.num_bombs > (self.squares_x * self.squares_y) // 3:
             self.num_bombs = self.squares_x * self.squares_y // 3
         self.reset_game() 
-
+    
     # Place bombs randomly (ensuring the first click is safe)
     def place_bombs(self, row, column):
         bombplaced = 0
         while bombplaced < self.num_bombs:
             x = randrange(self.squares_y)
             y = randrange(self.squares_x)
-            # Do not place a bomb on the first-clicked cell
-            if not self.grid[x][y].has_bomb and not (row == x and column == y):
+            if not self.grid[x][y].has_bomb:
                 self.grid[x][y].has_bomb = True
                 bombplaced += 1
         self.count_all_bombs()
-        # If the first click’s cell ends up with a bomb count, reset and try again.
-        if self.grid[row][column].bomb_count != 0:
-            self.reset_game()
-            self.place_bombs(row, column)
+
         
     # Count bombs adjacent to every cell in the grid
     def count_all_bombs(self):
