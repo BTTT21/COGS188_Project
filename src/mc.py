@@ -1,21 +1,68 @@
+import numpy as np
+import time
+from collections import defaultdict
+
 class MCSolver(BaseSolver):
-    def __init__(self, game, simulations=1000):
+    def __init__(self, game, simulations=500, epsilon=0.1):
         super().__init__(game)
         self.simulations = simulations
-        self.action_values = {}
+        self.epsilon = epsilon
+        self.Q = defaultdict(float)  # 动作价值
+        self.N = defaultdict(int)    # 访问次数
         
     def run_simulation(self):
-        # 执行蒙特卡洛模拟
-        pass
+        state = self._get_state_hash()
+        original_state = self.game.get_observation()
+        total_rewards = defaultdict(float)
         
-    def select_action(self):
-        # 根据模拟结果选择最佳动作
-        pass
+        for _ in range(self.simulations):
+            self.game.__dict__.update(original_state)
+            steps = []
+            while not self.game.game_over:
+                # ε-greedy动作选择
+                if np.random.random() < self.epsilon:
+                    action = self._random_action()
+                else:
+                    action = self._best_action()
+                
+                r, c, _ = action
+                prev_state = self._get_state_hash()
+                reward = 1 if self.game.reveal(r, c) else -100
+                steps.append((prev_state, action, reward))
+            
+            # 反向传播回报
+            G = 0
+            for (s, a, r) in reversed(steps):
+                G = r + 0.9 * G  # 折扣因子
+                self.Q[(s, a)] += G
+                self.N[(s, a)] += 1
+        
+    def _get_state_hash(self):
+        return hash(self.game.revealed.tobytes())
+        
+    def _random_action(self):
+        candidates = np.argwhere(~self.game.revealed & ~self.game.flags)
+        if len(candidates) == 0:
+            return None
+        r, c = candidates[np.random.choice(len(candidates))]
+        return (r, c, 'reveal')
+        
+    def _best_action(self):
+        candidates = np.argwhere(~self.game.revealed & ~self.game.flags)
+        if not candidates:
+            return None
+        state = self._get_state_hash()
+        best_value = -float('inf')
+        best_action = None
+        for (r, c) in candidates:
+            action = (r, c, 'reveal')
+            key = (state, action)
+            value = self.Q[key] / self.N[key] if self.N[key] > 0 else 0
+            if value > best_value:
+                best_value = value
+                best_action = action
+        return best_action or self._random_action()
         
     def train(self, episodes):
         for _ in range(episodes):
-            self.game.reset()
-            while not self.game.game_over:
-                self.run_simulation()
-                action = self.select_action()
-                # 执行动作并更新
+            self.run_simulation()
