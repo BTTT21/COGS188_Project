@@ -295,51 +295,47 @@ class Menu:
             else:
                 return False
 
-def main():
+
     # Initialize pygame and set initial screen size and caption
-    pygame.init()
-    size = (NSQUARES_X * (WIDTH + MARGIN) + MARGIN, (NSQUARES_Y * (HEIGHT + MARGIN) + MARGIN) + MENU_SIZE)
-    screen = pygame.display.set_mode(size, pygame.RESIZABLE)
-    pygame.display.set_caption("Minesweeper by Raul Vieira - Expert Level")
-    # Font for the game
-    font = pygame.font.Font('freesansbold.ttf', 24)
-    # Create instances for Game and Menu
-    game = Game()
-    menu = Menu()
-    clock = pygame.time.Clock()
+pygame.init()
+size = (NSQUARES_X * (WIDTH + MARGIN) + MARGIN, (NSQUARES_Y * (HEIGHT + MARGIN) + MARGIN) + MENU_SIZE)
+screen = pygame.display.set_mode(size, pygame.RESIZABLE)
+pygame.display.set_caption("Minesweeper by Raul Vieira - Expert Level")
+# Font for the game
+font = pygame.font.Font('freesansbold.ttf', 24)
+# Create instances for Game and Menu
+game = Game()
+menu = Menu()
+clock = pygame.time.Clock()
+# Main loop
+while True:
+    for event in pygame.event.get():
+        # Closes the game if user clicks the X
+        if event.type == pygame.QUIT:  
+            pygame.quit()
+            sys.exit()
+        # Handle mouse clicks
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            position = pygame.mouse.get_pos()
+            column = position[0] // (WIDTH + MARGIN)
+            row = (position[1] - MENU_SIZE) // (HEIGHT + MARGIN)
+            if row >= game.squares_y:
+                row = game.squares_y - 1
+            if column >= game.squares_x:
+                column = game.squares_x - 1
+            if row >= 0:
+                game.click_handle(row, column, event.button)
+            else:
+                menu.click_handle(game)
+        # Handle screen resize events
+        elif event.type == pygame.VIDEORESIZE:
+            if game.resize: 
+                game.adjust_grid(event.w, event.h)
+                game.reset_game()
+            else:  
+                game.resize = True
 
-    # Main loop
-    while True:
-        for event in pygame.event.get():
-            # Closes the game if user clicks the X
-            if event.type == pygame.QUIT:  
-                pygame.quit()
-                sys.exit()
-            # Handle mouse clicks
-            elif event.type == pygame.MOUSEBUTTONDOWN:
-                position = pygame.mouse.get_pos()
-                column = position[0] // (WIDTH + MARGIN)
-                row = (position[1] - MENU_SIZE) // (HEIGHT + MARGIN)
-                if row >= game.squares_y:
-                    row = game.squares_y - 1
-                if column >= game.squares_x:
-                    column = game.squares_x - 1
-                if row >= 0:
-                    game.click_handle(row, column, event.button)
-                else:
-                    menu.click_handle(game)
-            # Handle screen resize events
-            elif event.type == pygame.VIDEORESIZE:
-                if game.resize: 
-                    game.adjust_grid(event.w, event.h)
-                    game.reset_game()
-                else:  
-                    game.resize = True
-
-        game.draw()
-        menu.draw(game)
-        clock.tick(60)
-        pygame.display.flip()
-
-if __name__ == '__main__':
-    main()
+    game.draw()
+    menu.draw(game)
+    clock.tick(60)
+    pygame.display.flip()
