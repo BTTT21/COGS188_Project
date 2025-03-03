@@ -50,7 +50,7 @@ class MCSolver(BaseSolver):
         
     def _best_action(self):
         candidates = np.argwhere(~self.game.revealed & ~self.game.flags)
-        if not candidates:
+        if candidates.size == 0:
             return None
         state = self._get_state_hash()
         best_value = -float('inf')

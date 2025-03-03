@@ -59,7 +59,7 @@ class CSPSolver(BaseSolver):
                 return (r, c, 'reveal')
         # Fallback to random
         candidates = np.argwhere(~self.game.revealed & ~self.game.flags)
-        if candidates:
+        if candidates.size > 0:
             r, c = candidates[0]
             return (r, c, 'reveal')
         return None
