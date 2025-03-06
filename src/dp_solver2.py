@@ -1,6 +1,7 @@
 import pygame
 import sys
 from random import randrange
+from functools import lru_cache
 
 # -------------------- Constants and Colors --------------------
 BLACK = (0, 0, 0)
@@ -18,9 +19,9 @@ LEFT_CLICK = 1
 RIGHT_CLICK = 3
 
 # Expert board settings
-NSQUARES_X = 9  # columns
-NSQUARES_Y = 9  # rows
-EXPERT_BOMBS = 10
+NSQUARES_X = 16  # columns
+NSQUARES_Y = 16  # rows
+EXPERT_BOMBS = 40
 
 # -------------------- Game Class --------------------
 class Game:
@@ -272,7 +273,7 @@ class Menu:
             else:
                 return False
 
-# -------------------- Dynamic Programming Solver --------------------
+# -------------------- DP Solver with Memoization --------------------
 # Helper: return valid neighbors (8 directions)
 def get_neighbors(r, c, max_rows, max_cols):
     neighbors = []
@@ -356,38 +357,72 @@ def get_cluster_constraints(cluster, constraints):
             cluster_constraints[clue] = (req, inter)
     return cluster_constraints
 
-# Use brute-force enumeration (DP) to determine the probability of a bomb in each cell of the cluster.
-def dp_cluster_solver(cluster, constraints):
+# DP solver with memoization (more “pure DP”)
+# We represent a partial assignment for the cluster as a tuple of length n,
+# where each element is 0 (no bomb), 1 (bomb), or -1 (unassigned).
+def dp_cluster_solver_dp(cluster, constraints):
     n = len(cluster)
-    total_valid = 0
-    bomb_counts = {cell: 0 for cell in cluster}
     index_map = {cell: i for i, cell in enumerate(cluster)}
+    constraints_list = []
+    for clue, (req, cells) in constraints.items():
+        indices = [index_map[cell] for cell in cells if cell in index_map]
+        if indices:
+            constraints_list.append((req, indices))
     
-    for mask in range(1 << n):
-        valid = True
-        for clue, (req, cells) in constraints.items():
-            count = 0
-            for cell in cells:
-                if cell in index_map and (mask & (1 << index_map[cell])):
-                    count += 1
-            if count != req:
-                valid = False
-                break
-        if valid:
-            total_valid += 1
-            for i, cell in enumerate(cluster):
-                if mask & (1 << i):
-                    bomb_counts[cell] += 1
+    # Check if a partial assignment is valid.
+    def valid_partial(assignment):
+        for req, indices in constraints_list:
+            assigned_sum = 0
+            unassigned = 0
+            for idx in indices:
+                if assignment[idx] == -1:
+                    unassigned += 1
+                else:
+                    assigned_sum += assignment[idx]
+            if assigned_sum > req:
+                return False
+            if assigned_sum + unassigned < req:
+                return False
+        return True
+
+    @lru_cache(maxsize=None)
+    def dp(i, assignment):
+        # assignment is a tuple of length n with values 0,1, or -1.
+        if i == n:
+            # Complete assignment: verify all constraints.
+            for req, indices in constraints_list:
+                if sum(assignment[idx] for idx in indices) != req:
+                    return (0, (0,)*n)
+            # Valid complete assignment.
+            return (1, assignment)
+        
+        total = 0
+        bomb_counts = [0] * n
+        # Try assigning cell i to 0 and 1.
+        for val in (0, 1):
+            new_assignment = list(assignment)
+            new_assignment[i] = val
+            new_assignment = tuple(new_assignment)
+            if not valid_partial(new_assignment):
+                continue
+            count, sub_bomb_counts = dp(i + 1, new_assignment)
+            total += count
+            for j in range(n):
+                bomb_counts[j] += sub_bomb_counts[j]
+        return (total, tuple(bomb_counts))
+    
+    initial_assignment = (-1,) * n
+    total_valid, bomb_counts = dp(0, initial_assignment)
     probabilities = {}
     if total_valid > 0:
-        for cell in cluster:
-            probabilities[cell] = bomb_counts[cell] / total_valid
+        for i, cell in enumerate(cluster):
+            probabilities[cell] = bomb_counts[i] / total_valid
     else:
         for cell in cluster:
             probabilities[cell] = 1.0
     return probabilities
 
-# Main DP solver: returns the coordinate of the best (safest) move.
+# Main DP solver: returns the coordinate of the safest move.
 def dp_solver(game):
     if not game.init:
         for r in range(game.squares_y):
@@ -401,10 +436,10 @@ def dp_solver(game):
     probabilities = {}
     for cluster in clusters:
         cluster_constraints = get_cluster_constraints(cluster, constraints)
-        cluster_probs = dp_cluster_solver(cluster, cluster_constraints)
+        cluster_probs = dp_cluster_solver_dp(cluster, cluster_constraints)
         probabilities.update(cluster_probs)
     
-    # For unrevealed cells not in any cluster, assign a default probability based on remaining bombs.
+    # For unrevealed cells not in any cluster, assign a default probability.
     remaining_unrevealed = []
     for r in range(game.squares_y):
         for c in range(game.squares_x):
@@ -472,7 +507,7 @@ def run_game():
                 if event.key == pygame.K_r:
                     game.reset_game()
         
-        # Auto-solver: if enabled and delay passed, execute the safest move
+        # Auto-solver: if enabled and delay passed, execute the safest move.
         current_time = pygame.time.get_ticks()
         if auto_solve and current_time - last_auto_move_time > auto_move_delay and not game.game_lost and not game.game_won:
             best_move = dp_solver(game)
