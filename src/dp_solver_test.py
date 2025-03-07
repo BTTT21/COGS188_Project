@@ -18,10 +18,14 @@ MENU_SIZE = 40   # height of the menu bar
 LEFT_CLICK = 1
 RIGHT_CLICK = 3
 
-# Expert board settings
+# Intermediate board settings
 NSQUARES_X = 16  # columns
 NSQUARES_Y = 16  # rows
 EXPERT_BOMBS = 40
+
+# Global counters for simulation statistics.
+win_count = 0
+loss_count = 0
 
 # -------------------- Game Class --------------------
 class Game:
@@ -274,7 +278,6 @@ class Menu:
                 return False
 
 # -------------------- DP Solver with Memoization --------------------
-# Helper: return valid neighbors (8 directions)
 def get_neighbors(r, c, max_rows, max_cols):
     neighbors = []
     for dr in [-1, 0, 1]:
@@ -286,7 +289,6 @@ def get_neighbors(r, c, max_rows, max_cols):
                 neighbors.append((nr, nc))
     return neighbors
 
-# Find all unrevealed cells adjacent to a revealed clue (the "frontier")
 def get_frontier_cells(game):
     frontier = set()
     for r in range(game.squares_y):
@@ -300,7 +302,6 @@ def get_frontier_cells(game):
                         break
     return frontier
 
-# Build constraints from each revealed clue: (required bombs, adjacent frontier cells)
 def get_constraints(game, frontier):
     constraints = {}
     for r in range(game.squares_y):
@@ -321,7 +322,6 @@ def get_constraints(game, frontier):
                         constraints[(r, c)] = (req, adj)
     return constraints
 
-# Group frontier cells into clusters based on shared constraints.
 def group_frontier_by_constraints(frontier, constraints):
     graph = {cell: set() for cell in frontier}
     for (r, c), (req, cells) in constraints.items():
@@ -347,7 +347,6 @@ def group_frontier_by_constraints(frontier, constraints):
             clusters.append(cluster)
     return clusters
 
-# For a given cluster, extract the related constraints (only consider cells within the cluster)
 def get_cluster_constraints(cluster, constraints):
     cluster_set = set(cluster)
     cluster_constraints = {}
@@ -357,9 +356,6 @@ def get_cluster_constraints(cluster, constraints):
             cluster_constraints[clue] = (req, inter)
     return cluster_constraints
 
-# DP solver with memoization (more “pure DP”)
-# We represent a partial assignment for the cluster as a tuple of length n,
-# where each element is 0 (no bomb), 1 (bomb), or -1 (unassigned).
 def dp_cluster_solver_dp(cluster, constraints):
     n = len(cluster)
     index_map = {cell: i for i, cell in enumerate(cluster)}
@@ -369,7 +365,6 @@ def dp_cluster_solver_dp(cluster, constraints):
         if indices:
             constraints_list.append((req, indices))
     
-    # Check if a partial assignment is valid.
     def valid_partial(assignment):
         for req, indices in constraints_list:
             assigned_sum = 0
@@ -387,18 +382,14 @@ def dp_cluster_solver_dp(cluster, constraints):
 
     @lru_cache(maxsize=None)
     def dp(i, assignment):
-        # assignment is a tuple of length n with values 0,1, or -1.
         if i == n:
-            # Complete assignment: verify all constraints.
             for req, indices in constraints_list:
                 if sum(assignment[idx] for idx in indices) != req:
                     return (0, (0,)*n)
-            # Valid complete assignment.
             return (1, assignment)
         
         total = 0
         bomb_counts = [0] * n
-        # Try assigning cell i to 0 and 1.
         for val in (0, 1):
             new_assignment = list(assignment)
             new_assignment[i] = val
@@ -422,7 +413,6 @@ def dp_cluster_solver_dp(cluster, constraints):
             probabilities[cell] = 1.0
     return probabilities
 
-# Main DP solver: returns the coordinate of the safest move.
 def dp_solver(game):
     if not game.init:
         for r in range(game.squares_y):
@@ -439,7 +429,6 @@ def dp_solver(game):
         cluster_probs = dp_cluster_solver_dp(cluster, cluster_constraints)
         probabilities.update(cluster_probs)
     
-    # For unrevealed cells not in any cluster, assign a default probability.
     remaining_unrevealed = []
     for r in range(game.squares_y):
         for c in range(game.squares_x):
@@ -464,7 +453,7 @@ pygame.init()
 size = (NSQUARES_X * (WIDTH + MARGIN) + MARGIN,
         (NSQUARES_Y * (HEIGHT + MARGIN) + MARGIN) + MENU_SIZE)
 screen = pygame.display.set_mode(size, pygame.RESIZABLE)
-pygame.display.set_caption("Minesweeper by Raul Vieira - Expert Level")
+pygame.display.set_caption("Minesweeper  - Intermediate Level")
 font = pygame.font.Font('freesansbold.ttf', 24)
 game = Game()
 menu = Menu()
@@ -476,10 +465,11 @@ last_auto_move_time = 0
 auto_move_delay = 500  # milliseconds between auto moves
 
 def run_game():
-    global auto_solve, last_auto_move_time
+    global auto_solve, last_auto_move_time, win_count, loss_count
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
+                print("Final wins: {} Losses: {}".format(win_count, loss_count))
                 pygame.quit()
                 sys.exit()
             elif event.type == pygame.MOUSEBUTTONDOWN:
@@ -515,6 +505,18 @@ def run_game():
                 row, column = best_move
                 game.click_handle(row, column, LEFT_CLICK)
                 last_auto_move_time = current_time
+        
+        # If game is over (win or loss), update counters and reset game.
+        if game.game_won:
+            win_count += 1
+            print("Wins: {}  Losses: {}".format(win_count, loss_count))
+            pygame.time.wait(1000)  # wait 1 second to show result
+            game.reset_game()
+        elif game.game_lost:
+            loss_count += 1
+            print("Wins: {}  Losses: {}".format(win_count, loss_count))
+            pygame.time.wait(1000)
+            game.reset_game()
         
         game.draw()
         menu.draw(game)
