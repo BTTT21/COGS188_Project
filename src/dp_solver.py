@@ -3,7 +3,8 @@ import sys
 from random import randrange
 from functools import lru_cache
 
-# -------------------- Constants and Colors --------------------
+import time
+
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 BLUE  = (0, 0, 255)
@@ -11,19 +12,17 @@ GREEN = (0, 255, 0)
 RED   = (255, 0, 0)
 GRAY  = (127, 127, 127)
 
-WIDTH = 30       # width of each cell
-HEIGHT = 30      # height of each cell
-MARGIN = 5       # margin between cells
-MENU_SIZE = 40   # height of the menu bar
+WIDTH = 30
+HEIGHT = 30
+MARGIN = 5
+MENU_SIZE = 40
 LEFT_CLICK = 1
 RIGHT_CLICK = 3
 
-# Expert board settings
-NSQUARES_X = 16  # columns
-NSQUARES_Y = 16  # rows
+NSQUARES_X = 16
+NSQUARES_Y = 16
 EXPERT_BOMBS = 40
 
-# -------------------- Game Class --------------------
 class Game:
     def __init__(self):
         self.squares_x = NSQUARES_X
@@ -208,7 +207,6 @@ class Game:
                             if game.grid[row + row_off][col + col_off].bomb_count == 0:
                                 game.grid[row + row_off][col + col_off].open_neighbours(game.squares_y, game.squares_x)
 
-# -------------------- Menu Class --------------------
 class Menu:
     def __init__(self):
         self.width = pygame.display.get_surface().get_width() - 2 * MARGIN
@@ -273,8 +271,6 @@ class Menu:
             else:
                 return False
 
-# -------------------- DP Solver with Memoization --------------------
-# Helper: return valid neighbors (8 directions)
 def get_neighbors(r, c, max_rows, max_cols):
     neighbors = []
     for dr in [-1, 0, 1]:
@@ -286,7 +282,6 @@ def get_neighbors(r, c, max_rows, max_cols):
                 neighbors.append((nr, nc))
     return neighbors
 
-# Find all unrevealed cells adjacent to a revealed clue (the "frontier")
 def get_frontier_cells(game):
     frontier = set()
     for r in range(game.squares_y):
@@ -300,7 +295,6 @@ def get_frontier_cells(game):
                         break
     return frontier
 
-# Build constraints from each revealed clue: (required bombs, adjacent frontier cells)
 def get_constraints(game, frontier):
     constraints = {}
     for r in range(game.squares_y):
@@ -321,7 +315,6 @@ def get_constraints(game, frontier):
                         constraints[(r, c)] = (req, adj)
     return constraints
 
-# Group frontier cells into clusters based on shared constraints.
 def group_frontier_by_constraints(frontier, constraints):
     graph = {cell: set() for cell in frontier}
     for (r, c), (req, cells) in constraints.items():
@@ -347,7 +340,6 @@ def group_frontier_by_constraints(frontier, constraints):
             clusters.append(cluster)
     return clusters
 
-# For a given cluster, extract the related constraints (only consider cells within the cluster)
 def get_cluster_constraints(cluster, constraints):
     cluster_set = set(cluster)
     cluster_constraints = {}
@@ -357,9 +349,6 @@ def get_cluster_constraints(cluster, constraints):
             cluster_constraints[clue] = (req, inter)
     return cluster_constraints
 
-# DP solver with memoization (more “pure DP”)
-# We represent a partial assignment for the cluster as a tuple of length n,
-# where each element is 0 (no bomb), 1 (bomb), or -1 (unassigned).
 def dp_cluster_solver_dp(cluster, constraints):
     n = len(cluster)
     index_map = {cell: i for i, cell in enumerate(cluster)}
@@ -369,7 +358,6 @@ def dp_cluster_solver_dp(cluster, constraints):
         if indices:
             constraints_list.append((req, indices))
     
-    # Check if a partial assignment is valid.
     def valid_partial(assignment):
         for req, indices in constraints_list:
             assigned_sum = 0
@@ -387,18 +375,14 @@ def dp_cluster_solver_dp(cluster, constraints):
 
     @lru_cache(maxsize=None)
     def dp(i, assignment):
-        # assignment is a tuple of length n with values 0,1, or -1.
         if i == n:
-            # Complete assignment: verify all constraints.
             for req, indices in constraints_list:
                 if sum(assignment[idx] for idx in indices) != req:
                     return (0, (0,)*n)
-            # Valid complete assignment.
             return (1, assignment)
         
         total = 0
         bomb_counts = [0] * n
-        # Try assigning cell i to 0 and 1.
         for val in (0, 1):
             new_assignment = list(assignment)
             new_assignment[i] = val
@@ -422,7 +406,6 @@ def dp_cluster_solver_dp(cluster, constraints):
             probabilities[cell] = 1.0
     return probabilities
 
-# Main DP solver: returns the coordinate of the safest move.
 def dp_solver(game):
     if not game.init:
         for r in range(game.squares_y):
@@ -439,7 +422,6 @@ def dp_solver(game):
         cluster_probs = dp_cluster_solver_dp(cluster, cluster_constraints)
         probabilities.update(cluster_probs)
     
-    # For unrevealed cells not in any cluster, assign a default probability.
     remaining_unrevealed = []
     for r in range(game.squares_y):
         for c in range(game.squares_x):
@@ -459,7 +441,6 @@ def dp_solver(game):
     best_cell = min(probabilities, key=probabilities.get)
     return best_cell
 
-# -------------------- Pygame Initialization and Main Loop --------------------
 pygame.init()
 size = (NSQUARES_X * (WIDTH + MARGIN) + MARGIN,
         (NSQUARES_Y * (HEIGHT + MARGIN) + MARGIN) + MENU_SIZE)
@@ -470,10 +451,9 @@ game = Game()
 menu = Menu()
 clock = pygame.time.Clock()
 
-# Auto-solver variables
 auto_solve = True
 last_auto_move_time = 0
-auto_move_delay = 500  # milliseconds between auto moves
+auto_move_delay = 500
 
 def run_game():
     global auto_solve, last_auto_move_time
@@ -507,7 +487,6 @@ def run_game():
                 if event.key == pygame.K_r:
                     game.reset_game()
         
-        # Auto-solver: if enabled and delay passed, execute the safest move.
         current_time = pygame.time.get_ticks()
         if auto_solve and current_time - last_auto_move_time > auto_move_delay and not game.game_lost and not game.game_won:
             best_move = dp_solver(game)
@@ -521,5 +500,105 @@ def run_game():
         clock.tick(60)
         pygame.display.flip()
 
+def test_win_rate(num_games=100):
+    global game
+    
+    import os
+    os.environ['SDL_VIDEODRIVER'] = 'dummy'
+    
+    pygame.init()
+    pygame.display.set_mode((1, 1), pygame.NOFRAME)
+    
+    font = pygame.font.Font('freesansbold.ttf', 24)
+    
+    wins = 0
+    losses = 0
+    total_exploration_rate = 0
+    start_time = time.time()
+    
+    num_mines = EXPERT_BOMBS
+    
+    print(f"Testing win rate over {num_games} games with {num_mines} mines...")
+    
+    for i in range(num_games):
+
+        game = Game()
+        
+        while not game.game_won and not game.game_lost:
+ 
+            best_move = dp_solver(game)
+            if best_move is not None:
+                row, column = best_move
+                game.click_handle(row, column, LEFT_CLICK)
+            else:
+                break
+        
+        total_non_mine_tiles = game.squares_x * game.squares_y - game.num_bombs
+        revealed_non_mine_tiles = 0
+        
+        for row in range(game.squares_y):
+            for column in range(game.squares_x):
+                if game.grid[row][column].is_visible and not game.grid[row][column].has_bomb:
+                    revealed_non_mine_tiles += 1
+        
+        exploration_rate = (revealed_non_mine_tiles / total_non_mine_tiles) * 100
+        total_exploration_rate += exploration_rate
+        
+        if game.game_won:
+            wins += 1
+        else:
+            losses += 1
+
+        if (i + 1) % 10 == 0:
+            print(f"Progress: {i + 1}/{num_games} games played")
+    
+    elapsed_time = time.time() - start_time
+    win_rate = (wins / num_games) * 100
+    avg_exploration_rate = total_exploration_rate / num_games
+    
+    print("\n----- RESULTS -----")
+    print(f"Games played: {num_games}")
+    print(f"Number of mines: {num_mines}")
+    print(f"Grid size: {NSQUARES_X}x{NSQUARES_Y}")
+    print(f"Wins: {wins}")
+    print(f"Losses: {losses}")
+    print(f"Win rate: {win_rate:.2f}%")
+    print(f"Average Exploration Rate: {avg_exploration_rate:.2f}%")
+    print(f"Time taken: {elapsed_time:.2f} seconds")
+    
+    pygame.quit()
+    
+    return win_rate, avg_exploration_rate
+
 if __name__ == "__main__":
-    run_game()
+    if len(sys.argv) > 1 and sys.argv[1] == "--test":
+        num_games = 100
+        if len(sys.argv) > 2:
+            try:
+                num_games = int(sys.argv[2])
+            except ValueError:
+                print("Invalid number of games. Using default 100.")
+        
+        pygame.init()
+        font = pygame.font.Font('freesansbold.ttf', 24)
+        game = Game()
+        menu = Menu()
+        win_rate = test_win_rate(num_games)
+        pygame.quit()
+        sys.exit()
+    else:
+        pygame.init()
+        size = (NSQUARES_X * (WIDTH + MARGIN) + MARGIN,
+                (NSQUARES_Y * (HEIGHT + MARGIN) + MARGIN) + MENU_SIZE)
+        screen = pygame.display.set_mode(size, pygame.RESIZABLE)
+        pygame.display.set_caption("Minesweeper - Intermediate Level")
+        font = pygame.font.Font('freesansbold.ttf', 24)
+        game = Game()
+        menu = Menu()
+        clock = pygame.time.Clock()
+        
+        auto_solve = True
+        last_auto_move_time = 0
+        auto_move_delay = 500
+        
+        run_game()
