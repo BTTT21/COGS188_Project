@@ -20,10 +20,10 @@ LEFT_CLICK = 1
 RIGHT_CLICK = 3
 
 # Expert board settings
-NSQUARES_X = 16  # Number of columns
-NSQUARES_Y = 16  # Number of rows
+NSQUARES_X = 10  # Number of columns
+NSQUARES_Y = 10  # Number of rows
 # Set initial number of bombs to 40 for Expert level
-EXPERT_BOMBS = 40
+EXPERT_BOMBS = 5
 
 # Class that holds the game logic          
 class Game:
@@ -160,19 +160,13 @@ class Game:
 
 
 
-    def check_victory(self):   
-        count = 0
-        total = self.squares_x * self.squares_y
-        for row in range(self.squares_y):
-            for column in range(self.squares_x):
-                if self.grid[row][column].is_visible:
-                    count += 1
-        if ((total - count) == self.num_bombs) and not self.game_lost:
+    def check_victory(self):
+        total_cells = self.squares_x * self.squares_y
+        visible_cells = sum(1 for row in self.grid for cell in row if cell.is_visible)
+        if total_cells - visible_cells == self.num_bombs:
             self.game_won = True
-            for row in range(self.squares_y):
-                for column in range(self.squares_x):
-                    if self.grid[row][column].has_bomb:
-                        self.grid[row][column].has_flag = True
+            print("Victory detected!")
+
         
     def count_flags(self):
         total_flags = 0
