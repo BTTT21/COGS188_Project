@@ -2,7 +2,6 @@ import pygame
 import sys
 from random import randrange
 
-# Colors used
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 BLUE = (0, 0, 255)
@@ -10,7 +9,7 @@ GREEN = (0, 255, 0)
 RED = (255, 0, 0)
 GRAY = (127, 127, 127)
 
-# Sets the WIDTH and HEIGHT of each grid cell
+
 WIDTH = 30
 HEIGHT = 30
 MARGIN = 5
@@ -18,16 +17,14 @@ MENU_SIZE = 40
 LEFT_CLICK = 1
 RIGHT_CLICK = 3
 
-# Expert board settings
-NSQUARES_X = 30  # Number of columns
-NSQUARES_Y = 16  # Number of rows
-# Set initial number of bombs to 99 for Expert level
+
+NSQUARES_X = 30  
+NSQUARES_Y = 16  
 EXPERT_BOMBS = 99
 
-# Class that holds the game logic          
+      
 class Game:
     def __init__(self):
-        # Create a grid of NSQUARES_Y x NSQUARES_X
         self.squares_x = NSQUARES_X
         self.squares_y = NSQUARES_Y
         self.grid = [[self.Cell(x, y) for x in range(self.squares_x)] for y in range(self.squares_y)]
@@ -39,9 +36,7 @@ class Game:
         self.flag_count = 0
 
     def draw(self):
-        # Set the screen background color
         screen.fill(BLACK)
-        # Draw the grid
         for row in range(self.squares_y):
             for column in range(self.squares_x):
                 color = WHITE
@@ -57,7 +52,6 @@ class Game:
                                 HEIGHT])
                 self.grid[row][column].show_text()
         
-    # Adjusts the grid when the screen size has changed
     def adjust_grid(self, sizex, sizey):
         global screen
         self.squares_x = (sizex - MARGIN) // (WIDTH + MARGIN)
@@ -72,7 +66,6 @@ class Game:
         size = ((self.squares_x*(WIDTH + MARGIN) + MARGIN), (self.squares_y*(HEIGHT + MARGIN) + MARGIN + MENU_SIZE))
         screen = pygame.display.set_mode(size, pygame.RESIZABLE)
 
-    # Reveals all bomb cells when user loses
     def game_over(self):
         for row in range(self.squares_y):
             for column in range(self.squares_x):
@@ -80,7 +73,7 @@ class Game:
                     self.grid[row][column].is_visible = True
                 self.grid[row][column].has_flag = False
 
-    # Changes the number of bombs placed and caps it
+    
     def change_num_bombs(self, bombs):
         self.num_bombs += bombs
         if self.num_bombs < 1:
@@ -89,7 +82,7 @@ class Game:
             self.num_bombs = self.squares_x * self.squares_y // 3
         self.reset_game() 
     
-    # Place bombs randomly (ensuring the first click is safe)
+    
     def place_bombs(self, row, column):
         bombplaced = 0
         while bombplaced < self.num_bombs:
@@ -101,13 +94,13 @@ class Game:
         self.count_all_bombs()
 
         
-    # Count bombs adjacent to every cell in the grid
+    
     def count_all_bombs(self):
         for row in range(self.squares_y):
             for column in range(self.squares_x):
                 self.grid[row][column].count_bombs(self.squares_y, self.squares_x)
     
-    # Restart the game
+    
     def reset_game(self):
         for row in range(self.squares_y):
             for column in range(self.squares_x):
@@ -143,17 +136,15 @@ class Game:
                     total_flags += 1
         self.flag_count = total_flags
 
-    # Handle for grid clicks
+    
     def click_handle(self, row, column, button):
         if button == LEFT_CLICK and self.game_won:
             self.reset_game()
         elif button == LEFT_CLICK and not self.grid[row][column].has_flag: 
             if not self.game_lost:
-                # Place bombs on the first click so you never click a bomb first
                 if not self.init:
                     self.place_bombs(row, column)
                     self.init = True
-                # Reveal the clicked cell
                 self.grid[row][column].is_visible = True
                 self.grid[row][column].has_flag = False
                 if self.grid[row][column].has_bomb:
@@ -175,11 +166,11 @@ class Game:
             self.count_flags()
 
 
-    # Game Sub-Class for each cell of the grid
+
     class Cell:
         def __init__(self, x, y):
-            self.x = x  # column index
-            self.y = y  # row index
+            self.x = x  
+            self.y = y  
             self.is_visible = False
             self.has_bomb = False
             self.bomb_count = 0
@@ -187,7 +178,7 @@ class Game:
             self.test = False
             self.has_flag = False
 
-        # Display the bomb count text for the cell
+        
         def show_text(self):
             if self.is_visible:
                 if self.bomb_count == 0:
@@ -196,7 +187,7 @@ class Game:
                     self.text = font.render(str(self.bomb_count), True, BLACK)
                 screen.blit(self.text, (self.x * (WIDTH + MARGIN) + 12, self.y * (HEIGHT + MARGIN) + 10 + MENU_SIZE))
         
-        # Count how many bombs are next to this cell (3x3)
+        
         def count_bombs(self, max_rows, max_cols):
             if not self.test:
                 self.test = True
@@ -209,13 +200,12 @@ class Game:
                                 game.grid[row][col].has_bomb):
                                 self.bomb_count += 1
         
-        # Open all neighboring cells if this cell has zero adjacent bombs
+        
         def open_neighbours(self, max_rows, max_cols):
             col = self.x
             row = self.y
             for row_off in range(-1, 2):
                 for col_off in range(-1, 2):
-                    # Check only vertical and horizontal neighbours
                     if ((row_off == 0 or col_off == 0) and row_off != col_off and
                         row + row_off >= 0 and col + col_off >= 0 and 
                         row + row_off < max_rows and col + col_off < max_cols):
@@ -292,27 +282,22 @@ class Menu:
                 return False
 
 
-# Initialize pygame and set initial screen size and caption
+
 pygame.init()
 size = (NSQUARES_X * (WIDTH + MARGIN) + MARGIN, (NSQUARES_Y * (HEIGHT + MARGIN) + MARGIN) + MENU_SIZE)
 screen = pygame.display.set_mode(size, pygame.RESIZABLE)
 pygame.display.set_caption("Minesweeper by Raul Vieira - Expert Level")
-# Font for the game
 font = pygame.font.Font('freesansbold.ttf', 24)
-# Create instances for Game and Menu
 game = Game()
 menu = Menu()
 clock = pygame.time.Clock()
-# Main loop
 
 def run_game():
     while True:
         for event in pygame.event.get():
-            # Closes the game if user clicks the X
             if event.type == pygame.QUIT:  
                 pygame.quit()
                 sys.exit()
-            # Handle mouse clicks
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 position = pygame.mouse.get_pos()
                 column = position[0] // (WIDTH + MARGIN)
@@ -325,7 +310,6 @@ def run_game():
                     game.click_handle(row, column, event.button)
                 else:
                     menu.click_handle(game)
-            # Handle screen resize events
             elif event.type == pygame.VIDEORESIZE:
                 if game.resize: 
                     game.adjust_grid(event.w, event.h)

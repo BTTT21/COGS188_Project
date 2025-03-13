@@ -2,14 +2,11 @@ import sys
 import random
 import time
 from copy import deepcopy
-
-# Constants from your original code
 LEFT_CLICK = 1
 RIGHT_CLICK = 3
 NSQUARES_X = 16
 NSQUARES_Y = 16
 
-# -------------------- CSP Solver Utilities --------------------
 def get_neighbors(r, c, max_rows, max_cols):
     neighbors = []
     for dr in [-1, 0, 1]:
@@ -22,16 +19,11 @@ def get_neighbors(r, c, max_rows, max_cols):
     return neighbors
 
 def get_frontier_cells(game):
-    """
-    Frontier = set of hidden/unflagged cells that are adjacent 
-               to at least one revealed cell with bomb_count > 0.
-    """
     frontier = set()
     for r in range(game.squares_y):
         for c in range(game.squares_x):
             cell = game.grid[r][c]
             if not cell.is_visible and not cell.has_flag:
-                # Check if any neighbor is a visible clue with bomb_count>0
                 for nr, nc in get_neighbors(r, c, game.squares_y, game.squares_x):
                     neighbor = game.grid[nr][nc]
                     if neighbor.is_visible and neighbor.bomb_count > 0:
@@ -40,11 +32,6 @@ def get_frontier_cells(game):
     return frontier
 
 def get_constraints(game, frontier):
-    """
-    Constraints: For each revealed cell with bomb_count > 0,
-    how many bombs among its adjacency are in the frontier?
-    (Also accounting for flagged cells).
-    """
     constraints = {}
     for r in range(game.squares_y):
         for c in range(game.squares_x):
@@ -63,10 +50,6 @@ def get_constraints(game, frontier):
     return constraints
 
 def group_frontier_by_constraints(frontier, constraints):
-    """
-    Build an undirected graph among frontier cells that share constraints,
-    then find connected components (clusters).
-    """
     graph = {cell: set() for cell in frontier}
     for _, (req, cells) in constraints.items():
         for cellA in cells:
@@ -94,9 +77,6 @@ def group_frontier_by_constraints(frontier, constraints):
     return clusters
 
 def get_cluster_constraints(cluster, constraints):
-    """
-    Extract constraints relevant only to the cells in 'cluster'
-    """
     cluster_set = set(cluster)
     cluster_constraints = {}
     for clue, (req, frontier_cells) in constraints.items():
@@ -106,11 +86,6 @@ def get_cluster_constraints(cluster, constraints):
     return cluster_constraints
 
 def valid_partial(assignment, constraints_list):
-    """
-    Partial assignment: array of -1 (unassigned), 0 (no bomb), 1 (bomb)
-    constraints_list: list of (required_bombs, [indices in cluster])
-    Check if partial assignment so far doesn't violate any constraint.
-    """
     for req, indices in constraints_list:
         assigned_sum = 0
         unassigned = 0
@@ -120,7 +95,6 @@ def valid_partial(assignment, constraints_list):
                 unassigned += 1
             else:
                 assigned_sum += val
-        # If we exceed required bombs, or can't possibly meet it => invalid
         if assigned_sum > req:
             return False
         if assigned_sum + unassigned < req:
@@ -129,11 +103,9 @@ def valid_partial(assignment, constraints_list):
 
 def backtrack_csp(i, assignment, constraints_list, results, n):
     if i == n:
-        # Check final validity
         for req, indices in constraints_list:
             if sum(assignment[idx] for idx in indices) != req:
                 return
-        # Valid full assignment
         results['count'] += 1
         for j in range(n):
             if assignment[j] == 1:
@@ -144,22 +116,15 @@ def backtrack_csp(i, assignment, constraints_list, results, n):
         assignment[i] = val
         if valid_partial(assignment, constraints_list):
             backtrack_csp(i+1, assignment, constraints_list, results, n)
-    assignment[i] = -1  # revert
+    assignment[i] = -1  
 
 def csp_cluster_solver(cluster, cluster_constraints):
-    """
-    Returns { cell: probability_of_bomb }
-    """
     n = len(cluster)
     index_map = {cell: i for i, cell in enumerate(cluster)}
-
-    # Build constraint list
     constraints_list = []
     for clue, (req, frontier_cells) in cluster_constraints.items():
         indices = [index_map[cell] for cell in frontier_cells]
         constraints_list.append((req, indices))
-
-    # Prepare structure to gather solutions
     results = {
         'count': 0,
         'bomb_counts': [0]*n
@@ -169,41 +134,25 @@ def csp_cluster_solver(cluster, cluster_constraints):
     backtrack_csp(0, assignment, constraints_list, results, n)
 
     if results['count'] == 0:
-        # No valid solutions => uncertain => assume 1.0
         return {cell: 1.0 for cell in cluster}
     else:
         probs = {}
         for i, cell in enumerate(cluster):
             probs[cell] = results['bomb_counts'][i] / results['count']
         return probs
-
-# -------------------- Main CSP Solver Function --------------------
 def csp_solver(game):
-    """
-    1) If the game isn't initialized, pick a RANDOM hidden cell.
-    2) Otherwise:
-       - Build constraints from revealed clues
-       - Solve each connected cluster in the frontier
-       - If there's any cell with probability=0.0 => pick from them randomly
-       - Otherwise pick random from all hidden/unflagged
-    """
     hidden_cells = [
         (r, c) for r in range(game.squares_y) for c in range(game.squares_x)
         if (not game.grid[r][c].is_visible and not game.grid[r][c].has_flag)
     ]
-
-    # If board not init, just pick a random hidden cell
     if not game.init:
         if hidden_cells:
             return random.choice(hidden_cells)
         else:
             return None
-
-    # Build constraints
     frontier = get_frontier_cells(game)
     constraints = get_constraints(game, frontier)
 
-    # If frontier is empty (and game not won/lost), pick random from hidden
     if not frontier:
         if hidden_cells:
             return random.choice(hidden_cells)
@@ -211,14 +160,10 @@ def csp_solver(game):
 
     clusters = group_frontier_by_constraints(frontier, constraints)
     probabilities = {}
-
-    # Solve each cluster
     for cluster in clusters:
         cluster_constraints = get_cluster_constraints(cluster, constraints)
         cluster_probs = csp_cluster_solver(cluster, cluster_constraints)
         probabilities.update(cluster_probs)
-
-    # For hidden cells not in frontier => default uniform probability
     flagged_count = sum(
         1 for r in range(game.squares_y) for c in range(game.squares_x)
         if game.grid[r][c].has_flag
@@ -232,21 +177,17 @@ def csp_solver(game):
     for (r, c) in hidden_cells:
         if (r, c) not in probabilities:
             probabilities[(r, c)] = default_prob
-
-    # Now see if there's any guaranteed safe cell (prob=0.0)
     guaranteed_safe = [cell for cell, prob in probabilities.items() if prob == 0.0]
     if guaranteed_safe:
         return random.choice(guaranteed_safe)
 
-    # Otherwise pick a random hidden cell
     if hidden_cells:
         return random.choice(hidden_cells)
 
     return None
 
-# -------------------- Testing Framework --------------------
+
 class HeadlessGame:
-    """A version of the Game class that works without pygame for testing"""
     
     class Cell:
         def __init__(self, x, y):
@@ -275,7 +216,6 @@ class HeadlessGame:
             row = self.y
             for row_off in range(-1, 2):
                 for col_off in range(-1, 2):
-                    # Note: This version opens only orthogonal neighbors
                     if ((row_off == 0 or col_off == 0) and row_off != col_off and
                         row + row_off >= 0 and col + col_off >= 0 and
                         row + row_off < max_rows and col + col_off < max_cols):
@@ -302,7 +242,6 @@ class HeadlessGame:
         while bombplaced < self.num_bombs:
             x = random.randrange(self.squares_y)
             y = random.randrange(self.squares_x)
-            # Avoid placing bombs at or near the first click
             if (abs(x - row) > 1 or abs(y - column) > 1) and not self.grid[x][y].has_bomb:
                 self.grid[x][y].has_bomb = True
                 bombplaced += 1
@@ -320,7 +259,6 @@ class HeadlessGame:
             for column in range(self.squares_x):
                 if self.grid[row][column].is_visible:
                     count += 1
-        # If the only cells left hidden are bombs, then we've won
         if ((total - count) == self.num_bombs) and not self.game_lost:
             self.game_won = True
             return True
@@ -349,7 +287,6 @@ class HeadlessGame:
                     self.grid[row][column].open_neighbours(self.squares_y, self.squares_x)
                 return self.check_victory()
         elif button == RIGHT_CLICK:
-            # Toggle flag
             if not self.grid[row][column].has_flag:
                 if self.flag_count < self.num_bombs and not self.grid[row][column].is_visible:
                     self.grid[row][column].has_flag = True
@@ -369,7 +306,7 @@ class HeadlessGame:
 def test_solver(num_games=100, num_mines=10):
     """Test the CSP solver over multiple games"""
     
-    global game  # Make the game accessible to Cell methods
+    global game  
     
     wins = 0
     losses = 0
@@ -380,23 +317,18 @@ def test_solver(num_games=100, num_mines=10):
         if game_num % 10 == 0:
             print(f"Progress: {game_num}/{num_games} games played")
         
-        # Initialize a new game with the specified number of mines
         game = HeadlessGame(num_bombs=num_mines)
         
-        # Play until win or loss
         game_over = False
         while not game_over:
-            # Get move from CSP solver
             move = csp_solver(game)
             
             if move is None:
-                # No move available
                 game.game_lost = True
                 losses += 1
                 break
                 
             row, col = move
-            # Make the move
             victory = game.click_handle(row, col, LEFT_CLICK)
             
             if victory:
@@ -411,7 +343,6 @@ def test_solver(num_games=100, num_mines=10):
     end_time = time.time()
     time_taken = end_time - start_time
     
-    # Print results
     print("----- RESULTS -----")
     print(f"Games played: {num_games}")
     print(f"Number of mines: {num_mines}")
@@ -432,10 +363,8 @@ def test_solver(num_games=100, num_mines=10):
         "time_taken": time_taken
     }
 
-# Global variables needed for the game logic
 game = None
 
-# -------------------- Main Entry Point --------------------
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Test CSP solver for Minesweeper")
