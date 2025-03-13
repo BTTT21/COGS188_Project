@@ -165,7 +165,7 @@ class Game:
         visible_cells = sum(1 for row in self.grid for cell in row if cell.is_visible)
         if total_cells - visible_cells == self.num_bombs:
             self.game_won = True
-            print("Victory detected!")
+            
 
         
     def count_flags(self):

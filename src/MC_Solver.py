@@ -1,9 +1,10 @@
 import random
 import numpy as np
 import matplotlib.pyplot as plt
+import time
 from minesweeper_MC import Game, LEFT_CLICK
 
-class RefinedMonteCarloSolver:
+class MonteCarloSolver:
     def __init__(self, game, episodes=2000, gamma=0.95):
         self.game = game
         self.episodes = episodes
@@ -402,6 +403,65 @@ class RefinedMonteCarloSolver:
         
         return win_rate, avg_steps
 
+    def test_win_rate(self, num_games=100, verbose=True):
+        """Test win rate over a number of games with progress reporting"""
+        wins = 0
+        losses = 0
+        total_exploration = 0
+        start_time = time.time()
+        
+        if verbose:
+            print(f"Testing win rate over {num_games} games with {self.game.num_bombs} mines...")
+        
+        for i in range(1, num_games + 1):
+            # Reset the game with a new bomb placement
+            self.game.reset_game(keep_bombs=False)
+            game_over = False
+            steps = 0
+            
+            while not game_over and steps < 100:  # Limit steps to prevent infinite loops
+                # Get action using the trained policy/behavior
+                action = self.behavior_policy(self.episodes)  # Use behavior policy
+                
+                if action is None:
+                    break
+                
+                # Execute action
+                self.click_cell(*action)
+                steps += 1
+                
+                # Check if game is over
+                if self.game.game_won:
+                    wins += 1
+                    game_over = True
+                elif self.game.game_lost:
+                    losses += 1
+                    game_over = True
+            
+            # Add exploration rate for this game
+            total_exploration += 1 if self.game.game_won else 0
+            
+            if verbose and i % 10 == 0:
+                print(f"Progress: {i}/{num_games} games played")
+        
+        # Calculate statistics
+        win_rate = (wins / num_games) * 100
+        avg_exploration = (total_exploration / num_games) * 100
+        time_taken = time.time() - start_time
+        
+        if verbose:
+            print("----- RESULTS -----")
+            print(f"Games played: {num_games}")
+            print(f"Number of mines: {self.game.num_bombs}")
+            print(f"Grid size: {self.game.squares_x}x{self.game.squares_y}")
+            print(f"Wins: {wins}")
+            print(f"Losses: {losses}")
+            print(f"Win rate: {win_rate:.2f}%")
+            print(f"Average Exploration Rate: {avg_exploration:.2f}%")
+            print(f"Time taken: {time_taken:.2f} seconds")
+        
+        return win_rate
+
     def plot_training_progress(self):
         """Plot training progress metrics"""
         plt.figure(figsize=(15, 10))
@@ -453,21 +513,3 @@ class RefinedMonteCarloSolver:
         
         plt.tight_layout()
         plt.show()
-
-# Example usage
-if __name__ == "__main__":
-    game = Game(use_display=False, num_bombs=5)
-    solver = RefinedMonteCarloSolver(game, episodes=3000)
-    
-    # Train the agent
-    solver.train()
-    
-    # Plot training progress
-    solver.plot_training_progress()
-    
-    # Evaluate with learned policy vs. behavior policy
-    print("Evaluating with learned policy:")
-    solver.evaluate(num_games=100, use_policy=True)
-    
-    print("\nEvaluating with behavior policy:")
-    solver.evaluate(num_games=100, use_policy=False)
