@@ -518,8 +518,6 @@ def test_win_rate(num_games=100):
     
     num_mines = EXPERT_BOMBS
     
-    print(f"Testing win rate over {num_games} games with {num_mines} mines...")
-    
     for i in range(num_games):
 
         game = Game()

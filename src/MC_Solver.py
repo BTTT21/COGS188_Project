@@ -410,9 +410,6 @@ class MonteCarloSolver:
         total_exploration = 0
         start_time = time.time()
         
-        if verbose:
-            print(f"Testing win rate over {num_games} games with {self.game.num_bombs} mines...")
-        
         for i in range(1, num_games + 1):
             # Reset the game with a new bomb placement
             self.game.reset_game(keep_bombs=False)
